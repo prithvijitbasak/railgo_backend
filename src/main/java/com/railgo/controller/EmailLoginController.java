@@ -20,7 +20,7 @@ public class EmailLoginController {
 
         try {
             String generatedOtp= emailService.generateAndSendOtp(email);
-            return ResponseEntity.ok(new ApiResponse(true, "OTP successfully sent to: " + email));
+            return ResponseEntity.ok(new ApiResponse(true, "OTP successfully sent to your email."));
         }
         catch(Exception e) {
             return ResponseEntity.internalServerError().body(new ApiResponse(false, "Failed to send OTP: " + e.getMessage()));

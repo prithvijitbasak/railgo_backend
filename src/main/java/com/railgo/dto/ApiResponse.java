@@ -1,19 +1,20 @@
 package com.railgo.dto;
 
 public class ApiResponse {
-    private boolean success;
+    private String status;
     private String message;
-    public ApiResponse(boolean success,String message) {
-        this.success = success;
+
+    public ApiResponse(boolean isSuccess, String message) {
+        this.status = isSuccess ? "success" : "failure";
         this.message = message;
     }
 
-    public boolean isSuccess() {
-        return success;
+    public String getStatus() {
+        return status;
     }
 
-    public void setSuccess(boolean success) {
-        this.success = success;
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public String getMessage() {
