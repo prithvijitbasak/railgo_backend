@@ -18,8 +18,7 @@ public class VerifyEmailLoginOtpController {
     @PostMapping("/verify_email_login_otp")
     public ResponseEntity<ApiResponse> verifyLoginOtp(@ModelAttribute VerifyOtpRequest request) {
 
-        if (request.getEmail() == null || request.getEmail().trim().isEmpty() ||
-                request.getOtp() == null || request.getOtp().trim().isEmpty()) {
+        if (request.getEmail() == null || request.getEmail().trim().isEmpty() || request.getOtp() == null || request.getOtp().trim().isEmpty()) {
             return ResponseEntity.badRequest().body(new ApiResponse(false, "Email and OTP are required!", "MISSING_CREDENTIALS", null));
         }
 
