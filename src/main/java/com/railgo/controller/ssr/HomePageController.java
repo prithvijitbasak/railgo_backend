@@ -1,41 +1,113 @@
 package com.railgo.controller.ssr;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.railgo.config.JwtTokenProvider;
+import com.railgo.dto.UserDetailsDto;
+import com.railgo.service.UserService;
+import io.jsonwebtoken.JwtException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import com.railgo.config.JwtTokenProvider;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/public/ssr")
 public class HomePageController {
 
-    private final JwtTokenProvider jwtTokenProvider;
+    private static final Logger log = LoggerFactory.getLogger(HomePageController.class);
 
-    public HomePageController(JwtTokenProvider jwtTokenProvider) {
+    private final JwtTokenProvider jwtTokenProvider;
+    private final UserService userService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public HomePageController(JwtTokenProvider jwtTokenProvider,
+                              UserService userService) {
         this.jwtTokenProvider = jwtTokenProvider;
+        this.userService = userService;
     }
 
     @GetMapping("/home")
-    public ResponseEntity<Map<String, Object>> home(
-            @RequestHeader(name = "access_token", required = false) String token) {
-        Map<String, Object> response = new HashMap<>();
+    public ResponseEntity<Map<String, String>> home(
+            @RequestHeader(name = "token", required = false) String tokenHeader,
+            @RequestHeader(name = "access_token", required = false) String accessTokenHeader,
+            @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
+        try {
+            // Resolve token from any supported header format
+            String rawToken = tokenHeader != null ? tokenHeader
+                    : (accessTokenHeader != null ? accessTokenHeader : authHeader);
 
-        if (token != null && !token.isBlank() && jwtTokenProvider.validateToken(token)) {
-            response.put("tokenIssued", false);
-            return ResponseEntity.ok(response);
+            // Strip "Bearer " prefix if present
+            String token = (rawToken != null && rawToken.startsWith("Bearer "))
+                    ? rawToken.substring(7).trim()
+                    : (rawToken != null ? rawToken.trim() : null);
+
+            log.info("Incoming /home request - raw token present: {}, stripped token present: {}", 
+                    rawToken != null, token != null);
+
+            String newToken = null;      // set only when we generate a new guest token
+            String isUser = "false";     // Default fallback string
+
+            boolean valid = token != null && !token.isBlank() && jwtTokenProvider.validateToken(token);
+
+            if (valid) {
+                try {
+                    Long userId = jwtTokenProvider.getUserId(token);   // throws for guest tokens
+                    Optional<UserDetailsDto> userOpt = userService.getUserDetails(userId);
+
+                    if (userOpt.isPresent()) {
+                        isUser = buildIsUserHeader(userOpt.get());
+                        log.info("Valid user token for userId: {}, isUser details generated", userId);
+                    } else {
+                        isUser = "false"; // User not found in database
+                        log.warn("User ID {} from token not found in database", userId);
+                    }
+                } catch (JwtException | NumberFormatException e) {
+                    // guest token or malformed subject -> isUser stays "false"
+                    log.info("Token is a guest token or has non-user subject: {}", e.getMessage());
+                    isUser = "false";
+                }
+            } else {
+                // Token is invalid/missing -> generate a new guest token to be returned in headers
+                newToken = jwtTokenProvider.generateGuestToken();
+                log.info("Token is invalid/missing, generated new guest token");
+            }
+
+            HttpHeaders headers = new HttpHeaders();
+            if (newToken != null) {
+                headers.set("token", newToken);
+            }
+
+            // Identical to VerifyEmailLoginOtpController format (JSON string or "false")
+            headers.set("isUser", isUser);
+            headers.set(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "token, isUser");
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(Map.of("status", "Success"));
+
+        } catch (Exception e) {
+            log.error("Unexpected error in /home endpoint", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("status", "Failure"));
         }
-
-        String guestToken = jwtTokenProvider.generateGuestToken();
-        response.put("tokenIssued", true);
-        response.put("access_token", guestToken);
-        return ResponseEntity.ok(response);
     }
 
-
+    private String buildIsUserHeader(UserDetailsDto user) throws Exception {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("user_id", user.userId());
+        details.put("first_name", user.firstName());
+        details.put("last_name", user.lastName());
+        details.put("email", user.email());
+        details.put("phone", user.phone());
+        return objectMapper.writeValueAsString(details);
+    }
 }

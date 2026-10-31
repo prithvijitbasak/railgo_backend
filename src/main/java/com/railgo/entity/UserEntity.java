@@ -10,7 +10,7 @@ public class UserEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
-    private Integer id;
+    private Long id;
 
     @Column(name = "email", length = 100)
     private String email;
@@ -21,10 +21,10 @@ public class UserEntity {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "first_name", length = 100)
+    @Column(name = "firstName", length = 100)
     private String firstName;
 
-    @Column(name = "last_name", length = 100)
+    @Column(name = "lastName", length = 100)
     private String lastName;
 
     // Standard No-Arg Constructor
@@ -32,11 +32,11 @@ public class UserEntity {
     }
 
     // Getters and Setters
-    public Integer getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
