@@ -15,7 +15,7 @@ public record UserDetailsDto(
 
     public static UserDetailsDto from(UserEntity user) {
         return new UserDetailsDto(
-                user.getId(),
+                user.getUserId(),
                 user.getFirstName(),
                 user.getLastName(),
                 user.getEmail(),

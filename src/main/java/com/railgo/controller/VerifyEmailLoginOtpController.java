@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -51,12 +52,21 @@ public class VerifyEmailLoginOtpController {
             UserEntity user = userRepository.findByEmail(request.getEmail())
                     .orElseThrow(() -> new IllegalStateException("User missing after verification"));
 
-            String token = jwtTokenProvider.generateUserToken(user.getId());   // ASSUMPTION: getId()
+            // Enforce single-device session: generate and persist a new session ID
+            String newSessionId = UUID.randomUUID().toString();
+            user.setCurrentSessionId(newSessionId);
+            userRepository.save(user);
+
+            // Issue JWT token with sessionId claim
+            String token = jwtTokenProvider.generateUserToken(user.getUserId(), newSessionId);
+            String userJson = buildIsUserHeader(user);
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("token", token);
-            headers.set("isUser", buildIsUserHeader(user));
-            headers.set(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "token, isUser");
+            headers.set("access_token", token);
+            headers.set("isUser", userJson);
+            headers.set("isuser", userJson);
+            headers.set(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "token, access_token, isUser, isuser");
 
             return ResponseEntity.ok().headers(headers).body(response);
 
@@ -66,10 +76,10 @@ public class VerifyEmailLoginOtpController {
         }
     }
 
-    // Keep identical to the isUser header in HomePageController (ideally share one helper)
+    // Keep identical to the isUser header in HomePageController
     private String buildIsUserHeader(UserEntity user) throws Exception {
         Map<String, Object> details = new LinkedHashMap<>();
-        details.put("user_id", user.getId());
+        details.put("user_id", user.getUserId());
         details.put("first_name", user.getFirstName());
         details.put("last_name", user.getLastName());
         details.put("email", user.getEmail());

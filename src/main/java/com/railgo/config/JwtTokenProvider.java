@@ -25,22 +25,31 @@ public class JwtTokenProvider {
     }
 
     public String generateGuestToken() {
-        return buildToken("guest-" + UUID.randomUUID(), "GUEST");
+        return buildToken("guest-" + UUID.randomUUID(), "GUEST", null);
     }
 
     public String generateUserToken(Long userId) {
-        return buildToken(String.valueOf(userId), "USER");
+        return buildToken(String.valueOf(userId), "USER", null);
     }
 
-    private String buildToken(String subject, String role) {
+    public String generateUserToken(Long userId, String sessionId) {
+        return buildToken(String.valueOf(userId), "USER", sessionId);
+    }
+
+    private String buildToken(String subject, String role, String sessionId) {
         Date now = new Date();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .setSubject(subject)
                 .claim("role", role)
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + EXPIRATION_TIME))
-                .signWith(secretKey, SignatureAlgorithm.HS256)
-                .compact();
+                .signWith(secretKey, SignatureAlgorithm.HS256);
+
+        if (sessionId != null) {
+            builder.claim("sessionId", sessionId);
+        }
+
+        return builder.compact();
     }
 
     public Claims parse(String token) {
@@ -66,6 +75,15 @@ public class JwtTokenProvider {
             throw new JwtException("Not a logged-in user token");
         }
         return Long.valueOf(claims.getSubject());
+    }
+
+    public String getSessionId(String token) {
+        try {
+            Claims claims = parse(token);
+            return claims.get("sessionId", String.class);
+        } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public boolean isLoggedInUser(String token) {

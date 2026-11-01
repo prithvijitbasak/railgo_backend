@@ -61,14 +61,19 @@ public class HomePageController {
             if (valid) {
                 try {
                     Long userId = jwtTokenProvider.getUserId(token);   // throws for guest tokens
-                    Optional<UserDetailsDto> userOpt = userService.getUserDetails(userId);
+                    String tokenSessionId = jwtTokenProvider.getSessionId(token);
+
+                    // Check single-device session validity against database
+                    Optional<UserDetailsDto> userOpt = userService.getUserDetailsIfSessionValid(userId, tokenSessionId);
 
                     if (userOpt.isPresent()) {
                         isUser = buildIsUserHeader(userOpt.get());
-                        log.info("Valid user token for userId: {}, isUser details generated", userId);
+                        log.info("Valid user token & active session for userId: {}, session: {}", userId, tokenSessionId);
                     } else {
-                        isUser = "false"; // User not found in database
-                        log.warn("User ID {} from token not found in database", userId);
+                        // User not found or session was invalidated by another device login
+                        log.warn("Session invalidated or logged in from another device for userId: {}, session: {}", userId, tokenSessionId);
+                        isUser = "false";
+                        newToken = jwtTokenProvider.generateGuestToken();
                     }
                 } catch (JwtException | NumberFormatException e) {
                     // guest token or malformed subject -> isUser stays "false"
@@ -84,11 +89,13 @@ public class HomePageController {
             HttpHeaders headers = new HttpHeaders();
             if (newToken != null) {
                 headers.set("token", newToken);
+                headers.set("access_token", newToken);
             }
 
             // Identical to VerifyEmailLoginOtpController format (JSON string or "false")
             headers.set("isUser", isUser);
-            headers.set(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "token, isUser");
+            headers.set("isuser", isUser);
+            headers.set(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "token, access_token, isUser, isuser");
 
             return ResponseEntity.ok()
                     .headers(headers)

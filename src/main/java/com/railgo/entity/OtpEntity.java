@@ -10,7 +10,8 @@ public class OtpEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    @Column(name = "otp_id")
+    private UUID otpId;
 
     @Column(nullable = false, length = 255)
     private String email;
@@ -27,12 +28,21 @@ public class OtpEntity {
     @Column(nullable = false)
     private Short used = 0;
 
+    public UUID getOtpId() {
+        return otpId;
+    }
+
+    public void setOtpId(UUID otpId) {
+        this.otpId = otpId;
+    }
+
+    // Convenience delegates for backwards compatibility
     public UUID getId() {
-        return id;
+        return otpId;
     }
 
     public void setId(UUID id) {
-        this.id = id;
+        this.otpId = id;
     }
 
     public String getEmail() {

@@ -9,8 +9,8 @@ public class UserEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
-    private Long id;
+    @Column(name = "user_id")
+    private Long userId;
 
     @Column(name = "email", length = 100)
     private String email;
@@ -21,23 +21,35 @@ public class UserEntity {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "firstName", length = 100)
+    @Column(name = "first_name", length = 100)
     private String firstName;
 
-    @Column(name = "lastName", length = 100)
+    @Column(name = "last_name", length = 100)
     private String lastName;
+
+    @Column(name = "current_session_id", length = 64)
+    private String currentSessionId;
 
     // Standard No-Arg Constructor
     public UserEntity() {
     }
 
     // Getters and Setters
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
+    // Convenience delegates for backwards compatibility
     public Long getId() {
-        return id;
+        return userId;
     }
 
     public void setId(Long id) {
-        this.id = id;
+        this.userId = id;
     }
 
     public String getEmail() {
@@ -78,5 +90,13 @@ public class UserEntity {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    public String getCurrentSessionId() {
+        return currentSessionId;
+    }
+
+    public void setCurrentSessionId(String currentSessionId) {
+        this.currentSessionId = currentSessionId;
     }
 }
