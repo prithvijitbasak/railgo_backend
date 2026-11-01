@@ -3,6 +3,7 @@ package com.railgo.controller.ssr;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.railgo.config.JwtTokenProvider;
 import com.railgo.dto.UserDetailsDto;
+import com.railgo.entity.UserEntity;
 import com.railgo.service.UserService;
 import io.jsonwebtoken.JwtException;
 import org.slf4j.Logger;
@@ -55,6 +56,7 @@ public class HomePageController {
 
             String newToken = null;      // set only when we generate a new guest token
             String isUser = "false";     // Default fallback string
+            boolean forcedLogout = false;
 
             boolean valid = token != null && !token.isBlank() && jwtTokenProvider.validateToken(token);
 
@@ -64,14 +66,23 @@ public class HomePageController {
                     String tokenSessionId = jwtTokenProvider.getSessionId(token);
 
                     // Check single-device session validity against database
-                    Optional<UserDetailsDto> userOpt = userService.getUserDetailsIfSessionValid(userId, tokenSessionId);
+                    Optional<UserEntity> userOpt = userService.findById(userId);
 
                     if (userOpt.isPresent()) {
-                        isUser = buildIsUserHeader(userOpt.get());
-                        log.info("Valid user token & active session for userId: {}, session: {}", userId, tokenSessionId);
+                        UserEntity user = userOpt.get();
+                        if (tokenSessionId != null && !tokenSessionId.isBlank() && tokenSessionId.equals(user.getCurrentSessionId())) {
+                            isUser = buildIsUserHeader(UserDetailsDto.from(user));
+                            log.info("Valid user token & active session for userId: {}, session: {}", userId, tokenSessionId);
+                        } else {
+                            // User session was invalidated by another device login
+                            log.warn("Session invalidated or logged in from another device for userId: {}, session: {}", userId, tokenSessionId);
+                            isUser = "false";
+                            newToken = jwtTokenProvider.generateGuestToken();
+                            forcedLogout = true;
+                        }
                     } else {
-                        // User not found or session was invalidated by another device login
-                        log.warn("Session invalidated or logged in from another device for userId: {}, session: {}", userId, tokenSessionId);
+                        // User not found in database
+                        log.warn("User ID {} from token not found in database", userId);
                         isUser = "false";
                         newToken = jwtTokenProvider.generateGuestToken();
                     }
@@ -97,9 +108,20 @@ public class HomePageController {
             headers.set("isuser", isUser);
             headers.set(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "token, access_token, isUser, isuser");
 
+            Map<String, String> responseBody = new LinkedHashMap<>();
+
+            if (forcedLogout) {
+                responseBody.put("status", "error");
+                responseBody.put("message", "Your account is logged on another device");
+                responseBody.put("action", "forced_logout_device_limit_reached");
+                responseBody.put("enum", "FORCED_LOGOUT_DEVICE_LIMIT_REACHED");
+            } else {
+                responseBody.put("status", "success");
+            }
+
             return ResponseEntity.ok()
                     .headers(headers)
-                    .body(Map.of("status", "Success"));
+                    .body(responseBody);
 
         } catch (Exception e) {
             log.error("Unexpected error in /home endpoint", e);
